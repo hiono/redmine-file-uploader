@@ -60,6 +60,9 @@ def run_optionparser():
     parser.add_option("-v", "--verbose",
                     action="store_true", dest="verbose", default=False,
                     help="Print status messages to stdout.")
+    parser.add_option("-F", "--foreceupload",
+                    action="store_true", dest="foreceupload", default=False,
+                    help="Force upload the input FILE.")
     
     return parser.parse_args()
 
@@ -85,15 +88,20 @@ class RedmineFileUploader(object):
         self.filename = options.filename
         self.description = options.description
         self.content_type = None
-
+        self.foreceupload = options.foreceupload
+        
     def run(self):
         self.browser = self.init_browser()
         self.the_file = self.open_file()
         self.login()
-        self.open_file_page()
-        self.populate_form()
-        self.submit_file()
-        
+        flag_dup = self.check_exist()
+        if flag_dup:
+            self.debugout('Found same file (' + self.description + ')...')            
+        if self.foreceupload or (not flag_dup):
+            self.open_file_page()
+            self.populate_form()
+            self.submit_file()
+            
     def init_browser(self):
         br = mechanize.Browser()
         br.set_handle_robots(False)
@@ -127,6 +135,19 @@ class RedmineFileUploader(object):
             page = self.browser.submit()
         except:
             self.errorout("Could not submit login form.")
+            raise
+
+    def check_exist(self):
+        self.debugout('Checking file exist...')
+        try:
+            page = self.browser.open(str(self.url + 'projects/' + self.project_id + '/files'))
+            for link in self.browser.links():
+                if self.description == link.text:
+                    # print(link.text, link.url)
+                    return True
+            return False
+        except:
+            self.errorout("Could not open 'Files' page for the project. Is 'Files' enabled for your project?")
             raise
 
     def open_file_page(self):
@@ -173,3 +194,4 @@ if __name__=="__main__":
         normalout("Warning! Note that supplying password on the command line is discouraged as it can be seen in the processlist by every user on the system.")
     uploader = RedmineFileUploader(options)
     uploader.run()
+    
